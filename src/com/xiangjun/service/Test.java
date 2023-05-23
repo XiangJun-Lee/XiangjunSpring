@@ -11,5 +11,6 @@ public class Test {
         XiangjunApplicationContext applicationContext = new XiangjunApplicationContext(ApplicationConfig.class);
 
         UserService userService = (UserService) applicationContext.getBean("userService");
+        userService.test();
     }
 }

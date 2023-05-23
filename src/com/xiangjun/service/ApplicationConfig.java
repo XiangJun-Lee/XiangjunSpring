@@ -8,4 +8,6 @@ import com.xiangjun.spring.ComponentScan;
  */
 @ComponentScan("com.xiangjun.service")
 public class ApplicationConfig {
+
+
 }
