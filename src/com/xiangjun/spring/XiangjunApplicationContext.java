@@ -5,6 +5,7 @@ import java.io.File;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -17,7 +18,9 @@ public class XiangjunApplicationContext {
     private final ConcurrentHashMap<String, BeanDefinition> beanDefinitionMap = new ConcurrentHashMap<>();
 
     // 单例池
-    private ConcurrentHashMap<String, Object> singletonBeanMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Object> singletonBeanMap = new ConcurrentHashMap<>();
+
+    private final ArrayList<BeanPostProcessor> beanPostProcessorList = new ArrayList<>();
 
     public XiangjunApplicationContext(Class configClass) {
         this.configClass = configClass;
@@ -40,6 +43,7 @@ public class XiangjunApplicationContext {
             if (file.isDirectory()) {
                 // 5. 获取路径下的所有文件
                 File[] files = file.listFiles();
+
                 for (File f : files) {
                     // 6. 判断文件是否为.class文件
                     String absolutePath = f.getAbsolutePath();
@@ -61,12 +65,18 @@ public class XiangjunApplicationContext {
                                 }
                                 Component component = clazz.getAnnotation(Component.class);
                                 String beanName = component.value();
-                                if (beanName.equals("")) {
+                                if ("".equals(beanName)) {
                                     beanName = Introspector.decapitalize(clazz.getSimpleName());
                                 }
                                 beanDefinitionMap.put(beanName, beanDefinition);
+
+                                // add bean后置处理器
+                                if (BeanPostProcessor.class.isAssignableFrom(clazz)) {
+                                    beanPostProcessorList.add((BeanPostProcessor) clazz.newInstance());
+                                }
                             }
-                        } catch (ClassNotFoundException e) {
+                        } catch (Exception
+                                e) {
                             throw new RuntimeException(e);
                         }
                     }
@@ -79,7 +89,7 @@ public class XiangjunApplicationContext {
          */
         for (String beanName : beanDefinitionMap.keySet()) {
             BeanDefinition beanDefinition = beanDefinitionMap.get(beanName);
-            if (beanDefinition.getSocpe().equals("singleton")) {
+            if ("singleton".equals(beanDefinition.getSocpe())) {
                 Object o = this.createBean(beanName, beanDefinition);
                 singletonBeanMap.put(beanName, o);
             }
@@ -93,7 +103,7 @@ public class XiangjunApplicationContext {
          */
         try {
             // 实例化
-            Object instance = clazz.getConstructor().newInstance();
+            Object instance = clazz.newInstance();
 
             // 依赖注入
             for (Field field : clazz.getDeclaredFields()) {
@@ -108,21 +118,23 @@ public class XiangjunApplicationContext {
                 ((BeanNameAware) instance).setBeanName(beanName);
             }
 
+            for (BeanPostProcessor beanPostProcessor : beanPostProcessorList) {
+                instance = beanPostProcessor.postProcessorBeforeInitialization(beanName, instance);
+            }
+
             // 初始化
             if (instance instanceof InitializingBean) {
                 // 不关注具体做什么，只是在初始化的时候，调用这个方法
                 ((InitializingBean) instance).afterPropertiesSet();
             }
 
+            for (BeanPostProcessor beanPostProcessor : beanPostProcessorList) {
+                instance = beanPostProcessor.postProcessorAfterInitialization(beanName, instance);
+            }
+
 
             return instance;
-        } catch (InstantiationException e) {
-            throw new RuntimeException(e);
-        } catch (IllegalAccessException e) {
-            throw new RuntimeException(e);
-        } catch (InvocationTargetException e) {
-            throw new RuntimeException(e);
-        } catch (NoSuchMethodException e) {
+        } catch (InstantiationException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
     }
@@ -132,8 +144,8 @@ public class XiangjunApplicationContext {
         if (beanDefinition == null) {
             throw new NullPointerException();
         }
-        String socpe = beanDefinition.getSocpe();
-        if (socpe.equals("singleton")) {
+        String scope = beanDefinition.getSocpe();
+        if ("singleton".equals(scope)) {
             Object bean = singletonBeanMap.get(beanName);
             // 如果getBean时还未加载
             if (bean == null) {

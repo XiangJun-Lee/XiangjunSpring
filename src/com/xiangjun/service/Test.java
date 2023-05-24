@@ -10,7 +10,9 @@ public class Test {
     public static void main(String[] args) {
         XiangjunApplicationContext applicationContext = new XiangjunApplicationContext(ApplicationConfig.class);
 
-        UserService userService = (UserService) applicationContext.getBean("userService");
+        UserInterface userService = (UserInterface) applicationContext.getBean("userService");
+        System.out.println("----------------------------------------");
         userService.test();
+        userService.test2();
     }
 }
